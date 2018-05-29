@@ -96,13 +96,6 @@ export class Board {
         return win;
     }
 
-    subWinner(sr, sc) {
-        return this.subWinners[sr * 3 + sc];
-    }
-    getAt(r, c) {
-        return this.grid[r * 9 + c];
-    }
-
     move(pos, player) {
         this.grid[pos] = player;
         this.lastMove=pos;

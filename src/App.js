@@ -1,22 +1,26 @@
 import React from 'react';
-import { StyleSheet, Text, Button, View, TouchableWithoutFeedback, Dimensions } from 'react-native';
-import { Board, MctsPlayer } from './Game.js';
+import { StyleSheet, Text, Button, View, TouchableWithoutFeedback, Modal, Dimensions } from 'react-native';
+import { Board, MctsPlayer, PLAYER, OPPONENT, TIE, PLAYING } from './Game.js';
 
 class CellView extends React.Component {
   render() {
-    let [celly, cellx] = [this.props.sy * 3 + this.props.y, this.props.sx * 3 + this.props.x];
-    let player = this.props.board.getAt(celly,cellx);
+    let [subboardy, subboardx] = [Math.floor(this.props.subBoardIndex / 3), this.props.subBoardIndex % 3];
+    let [celly, cellx] = [subboardy * 3 + Math.floor(this.props.cellIndex / 3), subboardx * 3 + Math.floor(this.props.cellIndex % 3)];
+    let gridPos = celly*9+cellx;
 
-    let isValid = this.props.validActions.indexOf(celly*9+cellx)>=0;
+    let player = this.props.board.grid[gridPos];
 
-    let borderStyle = styles["border" + this.props.y + "x" + this.props.x];
-    let borderColor = {borderColor : isValid ? "#ddd" : "#666"};
+    let isValid = this.props.validActions.indexOf(gridPos)>=0;
+
+    let borderStyle = styles["border" + this.props.cellIndex];
+    let borderColorValid = {borderLeftColor : "#ddd",borderRightColor : "#ddd",borderTopColor : "#ddd",borderBottomColor : "#ddd"};
+    let cellColorValid = {backgroundColor : "#222"};
     return (
       <TouchableWithoutFeedback onPress={
-          () => {if(isValid) this.props.onPressCell(celly, cellx);}}>
-        <View style={[styles.cell, borderColor, borderStyle]}>
+          () => {if(isValid) this.props.onPressCell(gridPos);}}>
+        <View style={[styles.cell, isValid ? cellColorValid : {}, isValid ? borderColorValid:{}, borderStyle]}>
           <Text style={[styles.cellText, styles["cellTextPlayer" + player]]}>
-            {player == 1 ? "X" : player == 2 ? "O" : ""}
+            {player == 1 ? "X" : player == 2 ? "O" : isValid ? "." : ""}
           </Text>
         </View>
       </TouchableWithoutFeedback>
@@ -26,8 +30,8 @@ class CellView extends React.Component {
 
 class SubBoardView extends React.Component {
   render() {
-    let borderStyle = styles["border" + this.props.y + "x" + this.props.x];
-    const winner = this.props.board.subWinner(this.props.y, this.props.x);
+    let borderStyle = styles["border" + this.props.index];
+    const winner = this.props.board.subWinners[this.props.index];
     return (
       winner === 0 ?
         <View style={[styles.subBoard, borderStyle]}>
@@ -36,10 +40,8 @@ class SubBoardView extends React.Component {
               <CellView
                 board={this.props.board}
                 validActions={this.props.validActions}
-                sx={this.props.x}
-                sy={this.props.y}
-                x={index % 3}
-                y={Math.floor(index / 3)}
+                subBoardIndex={this.props.index}
+                cellIndex={index}
                 onPressCell={this.props.onPressCell}
                 key={index}
               />)
@@ -62,8 +64,7 @@ class BoardView extends React.Component {
             <SubBoardView
               board={this.props.board}
               validActions={this.props.validActions}
-              x={index % 3}
-              y={Math.floor(index / 3)}
+              index={index}
               onPressCell={this.props.onPressCell}
               key={index}
             />)
@@ -80,26 +81,49 @@ export default class App extends React.Component {
 
     this.mctsPlayer = new MctsPlayer();
 
-    this.state = {
-      board: board
-    }
+    this.state={
+      board: board,
+      status:PLAYING
+    };
+  }
+    
+
+  init() {
+    let board = new Board();
+
+    this.mctsPlayer = new MctsPlayer();
+
+    this.setState({
+      board: board,
+      status:PLAYING
+    });
   }
 
-  onPressCell(y, x) {
-    let move = y * 9 + x;
+  onPressCell(gridPos) {
+    let move = gridPos;
     this.setState((prev) => {
+
       let board = this.state.board;
       board.move(move, 1);
+      let validActions = board.validActions();
+      let status = board.status(validActions);      
 
-      setTimeout(() => {
-        let opmove = this.mctsPlayer.getMove(board, move, 2, 100);
-        board.move(opmove, 2);
-        this.setState((prev) => {
-          return { board: board };
-        });
-      }, 0);
+      if(status === PLAYING) {
+        setTimeout(() => {
+          this.setState((prev) => {
 
-      return { board: board };
+            let opmove = this.mctsPlayer.getMove(board, move, 2, 100);
+            board.move(opmove, 2);
+            let validActions = board.validActions();
+            let status = board.status(validActions);      
+
+            return { board: board, status:status };
+          });
+
+        }, 0);
+      }
+
+      return { board: board, status:status };
     });
   }
 
@@ -114,6 +138,25 @@ export default class App extends React.Component {
           validActions={this.state.board.validActions()}
           onPressCell={(y, x) => this.onPressCell(y, x)}
         />
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={this.state.status!==PLAYING}
+          onRequestClose={()=>{this.init()}}>
+
+          <View style={{ flex:1, justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{
+              justifyContent: 'center',
+              alignItems: 'center', 
+              backgroundColor : "#fff", 
+              height: 200 ,
+              width: '90%'
+              }}>
+              <Text>{this.state.status===PLAYER?"You Win!":this.state.status===OPPONENT?"You Lose!":this.state.status===TIE?"Draw!":""}</Text>
+              <Button onPress={()=>{this.init()}} title="restart" ></Button>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -121,7 +164,8 @@ export default class App extends React.Component {
 
 
 const minDim = Math.min(Dimensions.get('window').width, Dimensions.get('window').height);
-const subBoardWith = 5;
+const subBoardBorderWith = 3;
+const subBoardBorderPadding = 4;
 
 const styles = StyleSheet.create({
   container: {
@@ -139,38 +183,42 @@ const styles = StyleSheet.create({
   subBoard: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    borderWidth: subBoardWith,
-    borderColor: '#1f9',
+    borderWidth: subBoardBorderWith,
+    borderLeftColor: '#1f9',
+    borderRightColor: '#1f9',
+    borderTopColor: '#1f9',
+    borderBottomColor: '#1f9',
     width: minDim / 3,
     height: minDim / 3,
+    padding : subBoardBorderPadding
   },
-  border0x0: {
+  border0: {
     borderLeftColor: '#000',
     borderTopColor: '#000',
   },
-  border0x1: {
+  border1: {
     borderTopColor: '#000',
   },
-  border0x2: {
+  border2: {
     borderRightColor: '#000',
     borderTopColor: '#000',
   },
-  border1x0: {
+  border3: {
     borderLeftColor: '#000',
   },
-  border1x1: {
+  border4: {
   },
-  border1x2: {
+  border5: {
     borderRightColor: '#000',
   },
-  border2x0: {
+  border6: {
     borderLeftColor: '#000',
     borderBottomColor: '#000',
   },
-  border2x1: {
+  border7: {
     borderBottomColor: '#000',
   },
-  border2x2: {
+  border8: {
     borderRightColor: '#000',
     borderBottomColor: '#000',
   },
@@ -178,17 +226,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: minDim / 3 - 50,
     textAlign: 'center',
-    lineHeight: minDim / 3 - 2*subBoardWith,
+    lineHeight: minDim / 3 - 2*subBoardBorderWith,
+    width:'100%'
   },  
   cell: {
-    borderWidth: subBoardWith / 2,
-    width: (minDim / 3 - 2 * subBoardWith) / 3,
-    height: (minDim / 3 - 2 * subBoardWith) / 3,
+    borderLeftColor: '#666',
+    borderRightColor: '#666',
+    borderTopColor: '#666',
+    borderBottomColor: '#666',
+    borderWidth: subBoardBorderWith / 2,
+    width: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
+    height: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
   },
   cellText: {
-    fontSize: (minDim / 3 - 2 * subBoardWith) / 3 - 50,
+    fontSize: (minDim / 3 - 2 * subBoardBorderWith) / 3 - 10,
     textAlign: 'center',
-    lineHeight: (minDim / 3 - 2 * subBoardWith) / 3 - subBoardWith,
+    lineHeight: (minDim / 3 - 2 * subBoardBorderWith) / 3 - subBoardBorderWith,
+    width:'100%'
   },
   cellTextPlayer1: {
     color: '#a70',
