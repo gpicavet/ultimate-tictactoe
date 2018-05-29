@@ -1,3 +1,13 @@
+## Ultimate TicTacToe
+
+React & React Native Implementation of the game described here :
+
+https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe
+
+The IA is based on the "Monte-Carlo Tree Search" Algorithm. Try to beat it!
+
+
+
 This project was bootstrapped with [Create React Native App](https://github.com/react-community/create-react-native-app).
 
 Below you'll find information about performing common tasks. The most recent version of this guide is available [here](https://github.com/react-community/create-react-native-app/blob/master/react-native-scripts/template/README.md).
