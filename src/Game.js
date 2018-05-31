@@ -141,6 +141,7 @@ export class Board {
     }
 
     status(validActions) {
+        //check for 3 aligned sub-tictactoe
         let winner = 0;
         for (let i = 0; i < 8; i++) {
             const winpos = wintab[i];
@@ -155,7 +156,8 @@ export class Board {
 
         if (winner != 0)
             return winner;
-
+        
+        //if there is no valid action left, count number of sub-tictactoe won
         if (validActions.length == 0) {
             let np = 0, no = 0;
             for (let i = 0; i < 9; i++) {
@@ -167,6 +169,7 @@ export class Board {
             return np > no ? PLAYER : np < no ? OPPONENT : TIE;
         }
 
+        //game still playing
         return PLAYING;
     }
 }
@@ -227,9 +230,7 @@ export class MctsPlayer {
 
         let player = 3 - fromNode.player;
 
-        for (let i = 0; i < validActions.length; i++) {
-
-            let pos = validActions[i];
+        for (let pos of validActions) {
 
             res = new MctsNode(
                 fromNode,

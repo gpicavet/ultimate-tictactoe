@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, Button, View, TouchableWithoutFeedback, Modal, Dimensions } from 'react-native';
+import { Platform, StyleSheet, Text, Button, View, TouchableWithoutFeedback, Modal, Dimensions } from 'react-native';
 import { Board, MctsPlayer, PLAYER, OPPONENT, TIE, PLAYING } from './Game.js';
 
 class CellView extends React.Component {
@@ -13,14 +13,15 @@ class CellView extends React.Component {
     let isValid = this.props.validActions.indexOf(gridPos)>=0;
 
     let borderStyle = styles["border" + this.props.cellIndex];
-    let borderColorValid = {borderLeftColor : "#ddd",borderRightColor : "#ddd",borderTopColor : "#ddd",borderBottomColor : "#ddd"};
-    let cellColorValid = {backgroundColor : "#222"};
+
     return (
       <TouchableWithoutFeedback onPress={
           () => {if(isValid) this.props.onPressCell(gridPos);}}>
-        <View style={[styles.cell, isValid ? cellColorValid : {}, isValid ? borderColorValid:{}, borderStyle]}>
+        <View style={[styles.cell, isValid ? styles.cellValid : {}, borderStyle]}>
           <Text style={[styles.cellText, styles["cellTextPlayer" + player]]}>
-            {player == 1 ? "X" : player == 2 ? "O" : isValid ? "." : ""}
+            {player == PLAYER ? "X" : 
+              player == OPPONENT ? "O" : 
+                isValid ? "." : ""}
           </Text>
         </View>
       </TouchableWithoutFeedback>
@@ -49,7 +50,9 @@ class SubBoardView extends React.Component {
         </View>
         :
         <View style={[styles.subBoard, borderStyle, styles.subBoardWinner]}>
-          <Text style={[styles.subBoardText,styles["cellTextPlayer" + winner]]}>{winner == 1 ? "X" : "O"}</Text>
+          <Text style={[styles.subBoardText,styles["cellTextPlayer" + winner]]}>
+            {winner == 1 ? "X" : "O"}
+          </Text>
         </View>
     );
   }
@@ -140,20 +143,22 @@ export default class App extends React.Component {
         />
         <Modal
           animationType="slide"
-          transparent={true}
+          style={[
+            Platform.OS === 'web'?styles.modalWeb:{}, 
+            Platform.OS === 'web' && this.state.status===PLAYING ? {visibility:'hidden'}:{}
+          ]}
           visible={this.state.status!==PLAYING}
           onRequestClose={()=>{this.init()}}>
 
-          <View style={{ flex:1, justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{
-              justifyContent: 'center',
-              alignItems: 'center', 
-              backgroundColor : "#fff", 
-              height: 200 ,
-              width: '90%'
-              }}>
-              <Text>{this.state.status===PLAYER?"You Win!":this.state.status===OPPONENT?"You Lose!":this.state.status===TIE?"Draw!":""}</Text>
-              <Button onPress={()=>{this.init()}} title="restart" ></Button>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalInternal}>
+              <Text style={styles.modalText}>
+                {this.state.status===PLAYER?"You Win!":
+                  this.state.status===OPPONENT?"You Lose!":
+                    this.state.status===TIE?"Draw!":""
+                }
+              </Text>
+              <Button onPress={()=>{this.init()}} title="Play Again" ></Button>
             </View>
           </View>
         </Modal>
@@ -224,7 +229,7 @@ const styles = StyleSheet.create({
   },
   subBoardText: {
     color: 'white',
-    fontSize: minDim / 3 - 50,
+    fontSize: minDim / 3 - 30,
     textAlign: 'center',
     lineHeight: minDim / 3 - 2*subBoardBorderWith,
     width:'100%'
@@ -238,6 +243,13 @@ const styles = StyleSheet.create({
     width: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
     height: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
   },
+  cellValid : {
+    backgroundColor : "#222",
+    borderLeftColor : "#ddd",
+    borderRightColor : "#ddd",
+    borderTopColor : "#ddd",
+    borderBottomColor : "#ddd"
+  },
   cellText: {
     fontSize: (minDim / 3 - 2 * subBoardBorderWith) / 3 - 10,
     textAlign: 'center',
@@ -250,4 +262,25 @@ const styles = StyleSheet.create({
   cellTextPlayer2: {
     color: '#0af',
   },
+  modalWeb: {
+    borderWidth: 0,
+    position: 'absolute',
+    width: '100%'    
+  },
+  modalContainer: { 
+    flex:1, 
+    justifyContent: 'center', 
+    alignItems: 'center' ,
+  },
+  modalInternal: {
+    justifyContent: 'center',
+    alignItems: 'center', 
+    backgroundColor : "#eee", 
+    height: 200 ,
+    width: '50%'
+  },
+  modalText: {
+    padding: 30,
+    fontSize: 30
+  }
 });
