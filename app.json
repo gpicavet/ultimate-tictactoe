@@ -4,7 +4,7 @@
     "sdkVersion": "27.0.0",
     "icon": "./public/icon.png",
     "version": "1.0.0",
-    "description": "React & React Native Implementation of the game described here : https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe . The IA is based on the Monte-Carlo Tree Search Algorithm. Try to beat it!"
+    "description": "React Native Implementation of the game described here : https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe . The IA is based on the Monte-Carlo Tree Search Algorithm. Try to beat it!"
   },
   "android": {
     "package": "io.github.gpicavet"

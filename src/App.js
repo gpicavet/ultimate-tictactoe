@@ -1,35 +1,40 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, Button, View, TouchableWithoutFeedback, Modal, Dimensions } from 'react-native';
+import { Platform, StyleSheet, Text, Button, View, TouchableWithoutFeedback, Modal, Dimensions, AsyncStorage } from 'react-native';
 import { Board, MctsPlayer, PLAYER, OPPONENT, TIE, PLAYING } from './Game.js';
 
+const IAThinkTimeMs = 100;
+
 class CellView extends React.Component {
+
   render() {
     let [subboardy, subboardx] = [Math.floor(this.props.subBoardIndex / 3), this.props.subBoardIndex % 3];
     let [celly, cellx] = [subboardy * 3 + Math.floor(this.props.cellIndex / 3), subboardx * 3 + Math.floor(this.props.cellIndex % 3)];
-    let gridPos = celly*9+cellx;
+    let gridPos = celly * 9 + cellx;
 
     let player = this.props.board.grid[gridPos];
 
-    let isValid = this.props.validActions.indexOf(gridPos)>=0;
+    let isValid = this.props.validActions.indexOf(gridPos) >= 0;
 
     let borderStyle = styles["border" + this.props.cellIndex];
 
     return (
       <TouchableWithoutFeedback onPress={
-          () => {if(isValid) this.props.onPressCell(gridPos);}}>
+        () => { if (isValid) this.props.onPressCell(gridPos); }}>
         <View style={[styles.cell, isValid ? styles.cellValid : {}, borderStyle]}>
           <Text style={[styles.cellText, styles["cellTextPlayer" + player]]}>
-            {player == PLAYER ? "X" : 
-              player == OPPONENT ? "O" : 
+            {player == PLAYER ? "X" :
+              player == OPPONENT ? "O" :
                 isValid ? "." : ""}
           </Text>
         </View>
       </TouchableWithoutFeedback>
     );
   }
+
 }
 
 class SubBoardView extends React.Component {
+
   render() {
     let borderStyle = styles["border" + this.props.index];
     const winner = this.props.board.subWinners[this.props.index];
@@ -50,15 +55,17 @@ class SubBoardView extends React.Component {
         </View>
         :
         <View style={[styles.subBoard, borderStyle, styles.subBoardWinner]}>
-          <Text style={[styles.subBoardText,styles["cellTextPlayer" + winner]]}>
+          <Text style={[styles.subBoardText, styles["cellTextPlayer" + winner]]}>
             {winner == 1 ? "X" : "O"}
           </Text>
         </View>
     );
   }
+
 }
 
 class BoardView extends React.Component {
+
   render() {
     return (
       <View style={styles.board}>
@@ -75,6 +82,7 @@ class BoardView extends React.Component {
       </View>
     );
   }
+
 }
 
 export default class App extends React.Component {
@@ -84,12 +92,26 @@ export default class App extends React.Component {
 
     this.mctsPlayer = new MctsPlayer();
 
-    this.state={
+    this.state = {
       board: board,
-      status:PLAYING
+      status: "start",
+      stats: {}
     };
+
   }
-    
+
+  async componentDidMount() {
+    let stats = await AsyncStorage.getItem('@AppStore:stats');
+    if (!stats) {
+      stats = JSON.stringify({ player: 0, opponent: 0, tie: 0 });
+      await AsyncStorage.setItem('@AppStore:stats', stats);
+    }
+    this.setState({ stats: JSON.parse(stats) });
+  }
+
+  async updateStat(stats) {
+    await AsyncStorage.setItem('@AppStore:stats', JSON.stringify(stats));
+  }
 
   init() {
     let board = new Board();
@@ -98,39 +120,50 @@ export default class App extends React.Component {
 
     this.setState({
       board: board,
-      status:PLAYING
+      status: PLAYING
     });
+  }
+
+  updateBoard(board, stats, move, player) {
+    board.move(move, player);
+    let validActions = board.validActions();
+    let status = board.status(validActions);
+
+    if (status !== PLAYING) {
+      if (status === PLAYER)
+        stats.player++;
+      else if (status === OPPONENT)
+        stats.opponent++;
+      else if (status === TIE)
+        stats.tie++;
+
+      this.updateStat(stats);
+    }
+
+    return { board: board, status: status, stats: stats };
   }
 
   onPressCell(gridPos) {
     let move = gridPos;
     this.setState((prev) => {
 
-      let board = this.state.board;
-      board.move(move, 1);
-      let validActions = board.validActions();
-      let status = board.status(validActions);      
+      let newState = this.updateBoard(this.state.board, this.state.stats, move, PLAYER);
 
-      if(status === PLAYING) {
+      if (newState.status === PLAYING) {
         setTimeout(() => {
           this.setState((prev) => {
 
-            let opmove = this.mctsPlayer.getMove(board, move, 2, 100);
-            board.move(opmove, 2);
-            let validActions = board.validActions();
-            let status = board.status(validActions);      
+            let opmove = this.mctsPlayer.getMove(this.state.board, move, OPPONENT, IAThinkTimeMs);
+            let newState = this.updateBoard(this.state.board, this.state.stats, opmove, OPPONENT);
 
-            return { board: board, status:status };
+            return newState;
           });
 
         }, 0);
       }
 
-      return { board: board, status:status };
+      return newState;
     });
-  }
-
-  componentDidMount() {
   }
 
   render() {
@@ -139,26 +172,30 @@ export default class App extends React.Component {
         <BoardView
           board={this.state.board}
           validActions={this.state.board.validActions()}
-          onPressCell={(y, x) => this.onPressCell(y, x)}
+          onPressCell={(pos) => this.onPressCell(pos)}
         />
         <Modal
           animationType="slide"
+          transparent={true}
           style={[
-            Platform.OS === 'web'?styles.modalWeb:{}, 
-            Platform.OS === 'web' && this.state.status===PLAYING ? {visibility:'hidden'}:{}
+            Platform.OS === 'web' ? styles.modalWeb : {},
+            Platform.OS === 'web' && this.state.status === PLAYING ? { visibility: 'hidden' } : {}
           ]}
-          visible={this.state.status!==PLAYING}
-          onRequestClose={()=>{this.init()}}>
+          visible={this.state.status !== PLAYING}
+          onRequestClose={() => { this.init() }}>
 
           <View style={styles.modalContainer}>
             <View style={styles.modalInternal}>
               <Text style={styles.modalText}>
-                {this.state.status===PLAYER?"You Win!":
-                  this.state.status===OPPONENT?"You Lose!":
-                    this.state.status===TIE?"Draw!":""
+                {this.state.status === PLAYER ? "You Win!" :
+                  this.state.status === OPPONENT ? "You Lose!" :
+                    this.state.status === TIE ? "Draw!" : "WELCOME"
                 }
               </Text>
-              <Button onPress={()=>{this.init()}} title="Play Again" ></Button>
+              <Text>Total Wins : {this.state.stats.player}</Text>
+              <Text>Total Loses : {this.state.stats.opponent}</Text>
+              <Text>Total Draws : {this.state.stats.tie}</Text>
+              <Button onPress={() => { this.init() }} title={this.state.status === "start" ? "Start" : "Play Again"} ></Button>
             </View>
           </View>
         </Modal>
@@ -167,7 +204,7 @@ export default class App extends React.Component {
   }
 }
 
-
+/** Styles */
 const minDim = Math.min(Dimensions.get('window').width, Dimensions.get('window').height);
 const subBoardBorderWith = 3;
 const subBoardBorderPadding = 4;
@@ -195,7 +232,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1f9',
     width: minDim / 3,
     height: minDim / 3,
-    padding : subBoardBorderPadding
+    padding: subBoardBorderPadding
   },
   border0: {
     borderLeftColor: '#000',
@@ -231,30 +268,30 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: minDim / 3 - 30,
     textAlign: 'center',
-    lineHeight: minDim / 3 - 2*subBoardBorderWith,
-    width:'100%'
-  },  
+    lineHeight: minDim / 3 - 2 * subBoardBorderWith,
+    width: '100%'
+  },
   cell: {
     borderLeftColor: '#666',
     borderRightColor: '#666',
     borderTopColor: '#666',
     borderBottomColor: '#666',
     borderWidth: subBoardBorderWith / 2,
-    width: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
-    height: (minDim / 3 - 2 * subBoardBorderWith-2*subBoardBorderPadding) / 3,
+    width: (minDim / 3 - 2 * subBoardBorderWith - 2 * subBoardBorderPadding) / 3,
+    height: (minDim / 3 - 2 * subBoardBorderWith - 2 * subBoardBorderPadding) / 3,
   },
-  cellValid : {
-    backgroundColor : "#222",
-    borderLeftColor : "#ddd",
-    borderRightColor : "#ddd",
-    borderTopColor : "#ddd",
-    borderBottomColor : "#ddd"
+  cellValid: {
+    backgroundColor: "#222",
+    borderLeftColor: "#ddd",
+    borderRightColor: "#ddd",
+    borderTopColor: "#ddd",
+    borderBottomColor: "#ddd"
   },
   cellText: {
     fontSize: (minDim / 3 - 2 * subBoardBorderWith) / 3 - 10,
     textAlign: 'center',
     lineHeight: (minDim / 3 - 2 * subBoardBorderWith) / 3 - subBoardBorderWith,
-    width:'100%'
+    width: '100%'
   },
   cellTextPlayer1: {
     color: '#a70',
@@ -265,19 +302,19 @@ const styles = StyleSheet.create({
   modalWeb: {
     borderWidth: 0,
     position: 'absolute',
-    width: '100%'    
+    width: '100%'
   },
-  modalContainer: { 
-    flex:1, 
-    justifyContent: 'center', 
-    alignItems: 'center' ,
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalInternal: {
     justifyContent: 'center',
-    alignItems: 'center', 
-    backgroundColor : "#eee", 
-    height: 200 ,
-    width: '50%'
+    alignItems: 'center',
+    backgroundColor: "#eee",
+    height: 200,
+    width: '70%'
   },
   modalText: {
     padding: 30,
